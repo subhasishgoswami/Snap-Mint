@@ -78,11 +78,14 @@ def mint():
     print(response_pinata.json()['IpfsHash'])
     uri= "https://ipfs.io/ipfs/" + response_pinata.json()['IpfsHash']
 
+
+    gas= requests.get("https://gasstation-mainnet.matic.network")
+    gas= gas.json()["safeLow"]
     construct_txn = contract.functions.mint(a, uri).buildTransaction({
         'from': acct.address,
         'nonce': w3.eth.getTransactionCount(acct.address),
         'gas': 2558615,
-        'gasPrice': w3.toWei('40', 'gwei')})
+        'gasPrice': w3.toWei(gas, 'gwei')})
 
     signed = acct.signTransaction(construct_txn)
 
@@ -92,3 +95,23 @@ def mint():
     print(tx_receipt)
     nft = nft_Event.processReceipt(tx_receipt)[0]['args']['_tokenid']
     return jsonify({"status": 'success',"data":nft, "url": response.json()['data']['image_url']})
+
+
+@bp.route("/URI/",methods = ["GET"])
+def uri():
+    tokenID= request.json['tokenid']
+    uri= contract.functions.tokenURI(int(tokenID)).call()
+    url= requests.get(uri).json()['image']
+    return jsonify({"status": 'success',"data": url})
+
+@bp.route("/owner/",methods = ["GET"])
+def owner():
+    tokenID= request.json['tokenid']
+    uri= contract.functions.ownerOf(int(tokenID)).call()
+    return jsonify({"status": 'success',"data": uri})
+
+@bp.route("/balance/",methods = ["GET"])
+def nums():
+    address= request.json['address']
+    uri= contract.functions.balanceOf(address).call()
+    return jsonify({"status": 'success',"data": uri})
