@@ -1,13 +1,23 @@
 from flask import Blueprint, jsonify, request
 bp = Blueprint("run", __name__)
-
 import json
 import requests
 from web3 import Web3, HTTPProvider
 from web3.contract import ConciseContract
-
+from pathlib import Path
+import requests
 import os
+from PIL import Image
+import base64
+import io
+from io import BytesIO
 
+PINATA_BASE_URL = "https://api.pinata.cloud/"
+endpoint = "pinning/pinJSONToIPFS"
+
+
+api_key= os.environ["API_KEY"]
+api_secret= os.environ["API_SECRET"]
 user = os.environ['USER']
 
 # web3.py instance
@@ -24,23 +34,51 @@ address= "0x1D17a42834dD63A410a0a55d73cc7d6413C69fFe"
 contract= w3.eth.contract(address= address, abi=abi)
 nft_Event = contract.events.nft()
 
-headers = {
-    'accept': 'application/json',
-    'Content-Type': 'multipart/form-data',
-}
-files = {
-    'image_file': ('ipfs.png', open('ipfs.png', 'rb'), 'image/png')
+
+headers_pinata = {
+    "pinata_api_key": api_key,
+    "pinata_secret_api_key": api_secret
 }
 
-@bp.route("/", methods= ["GET"])
-def landing():
-    return jsonify({"status": 'success',"data":"nft"})
+
+
+
 @bp.route("/mint/",methods = ["GET", "POST"])
 def mint():
     a= request.json['a']
+
+    image = base64.b64decode(str(request.json['image']))
+
+    imagePath = ("nft.png")
+    img = Image.open(io.BytesIO(image))
+    img.save(imagePath, 'png')
+    
+    headers = {
+    'accept': 'application/json',
+    'Content-Type': 'multipart/form-data',
+    }
+
+    files = {
+    'image_file': ('nft.png', open('nft.png', 'rb'), 'image/png')
+    }
     response = requests.post('https://imageserver.link/upload/image/file', files=files)
-    print(response.json()['data']['image_url'])
-    construct_txn = contract.functions.mint(a, response.json()['data']['image_url']).buildTransaction({
+    url= response.json()['data']['image_url']
+    print(url)
+    x = {
+    "name": "Snap Mint",
+    "description": "Mint your snaps",
+    "image": url
+    }
+    response_pinata = requests.post(
+    PINATA_BASE_URL + endpoint,
+    x,
+    headers=headers_pinata,
+    )
+
+    print(response_pinata.json()['IpfsHash'])
+    uri= "https://ipfs.io/ipfs/" + response_pinata.json()['IpfsHash']
+
+    construct_txn = contract.functions.mint(a, uri).buildTransaction({
         'from': acct.address,
         'nonce': w3.eth.getTransactionCount(acct.address),
         'gas': 2558615,
